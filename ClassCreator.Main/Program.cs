@@ -1,5 +1,6 @@
 using ClassCreator.Data.Common;
 using ClassCreator.Data.Core;
+using System.Reflection;
 
 namespace ClassCreator.Main
 {
@@ -26,9 +27,9 @@ namespace ClassCreator.Main
         {
             var builder = WebApplication.CreateBuilder(args);
             var services = builder.Services;
-                
             services
-                .AddSingleton<IObjectCreator, ObjectCreator>()
+                .AddLogging()
+                .AddSingleton<IObjectHandler, ObjectHandler>()
                 .AddEndpointsApiExplorer()
                 .AddSwaggerGen()
                 .AddMvcCore();
