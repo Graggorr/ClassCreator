@@ -2,11 +2,13 @@
 
 namespace ClassCreator.Data.Common
 {
-    internal interface IObjectRepository: IEnumerable<ObjectData>
+    public interface IObjectRepository: IEnumerable<ObjectData>
     {
-        public ObjectData? this[Type key] => Get(key);
-        public bool Add(Type type, ObjectData objectData);
-        public ObjectData? Get(Type type);
-        public bool Remove(Type type);
+        public IEnumerable<ObjectData> ObjectsData { get; }
+        public bool Add(string name, ObjectData objectData);
+        public bool Update(string name, ObjectData objectData);
+        public ObjectData? Get(string name);
+        public bool Remove(string name);
+        public bool Contains(string name);
     }
 }

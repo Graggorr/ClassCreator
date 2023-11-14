@@ -15,7 +15,6 @@
   <ItemGroup>
     <ProjectReference Include="..\ClassCreator.Controllers\ClassCreator.Controllers.csproj" />
     <ProjectReference Include="..\ClassCreator.Data\ClassCreator.Data.csproj" />
-    <ProjectReference Include="..\ClassCreator.Objects\ClassCreator.Objects.csproj" />
   </ItemGroup>
 
 </Project>

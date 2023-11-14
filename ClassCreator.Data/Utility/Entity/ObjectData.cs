@@ -1,11 +1,12 @@
 ﻿using ClassCreator.Data.Utility.DTO;
 using Newtonsoft.Json;
+using System.Reflection;
 
 namespace ClassCreator.Data.Utility.Entity
 {
     public class ObjectData
     {
-        internal ObjectData() { }
+        private ObjectData() { }
 
         [JsonProperty("name")]
         public string Name { get; internal init; }
@@ -28,7 +29,7 @@ namespace ClassCreator.Data.Utility.Entity
 
         public override string ToString() => $"public class {Name}\n{{\n{string.Join('\n', Properties)}\n}}";
 
-        public static ObjectData? CreateObjectData(ObjectDataDto dto)
+        internal static ObjectData? CreateObjectData(ObjectDataDto dto)
         {
             if (dto == null)
             {
@@ -56,6 +57,39 @@ namespace ClassCreator.Data.Utility.Entity
             }
 
             return null;
+        }
+
+        internal static ObjectData? CreateObjectData(string typeName)
+        {
+            var type = Type.GetType(typeName);
+
+            if (type is null)
+            {
+                return null;
+            }
+
+            var properties = type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            var propertiesData = new List<PropertyData>();
+
+            foreach (var property in properties)
+            {
+                var setterAccessModifier = property.SetMethod.Attributes;
+                var getterAccessModifier = property.GetMethod.Attributes;
+                propertiesData.Add(new PropertyData
+                {
+                    Name = property.Name,
+                    PropertyType = property.PropertyType,
+                    AccessModifier = (MethodAttributes)Math.Max((int)getterAccessModifier, (int)setterAccessModifier),
+                    SetterAccessModifier = setterAccessModifier,
+                    GetterAccessModifier = getterAccessModifier,
+                });
+            }
+
+            return new ObjectData
+            {
+                Name = typeName,
+                Properties = propertiesData,
+            };
         }
     }
 }

@@ -1,6 +1,7 @@
 using ClassCreator.Data.Common;
 using ClassCreator.Data.Core;
 using System.Reflection;
+using System.Xml;
 
 namespace ClassCreator.Main
 {
@@ -35,6 +36,12 @@ namespace ClassCreator.Main
                 .AddMvcCore();
 
             return builder.Build();
+        }
+
+        private static void PrepareAssembly()
+        {
+            var xmlDocument = new XmlDocument();
+            xmlDocument.CreateElement("1");
         }
     }
 }

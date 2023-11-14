@@ -11,7 +11,7 @@ namespace ClassCreator.Data.Utility.Entity
         [JsonProperty("name")]
         public string Name { get; internal init; }
         [JsonProperty("propertyType")]
-        public string PropertyType { get; internal init; }
+        public Type PropertyType { get; internal init; }
         [JsonProperty("accessModifier")]
         public MethodAttributes AccessModifier { get; internal init; }
         [JsonProperty("setterAccessModifier")]
@@ -19,29 +19,12 @@ namespace ClassCreator.Data.Utility.Entity
         [JsonProperty("getterAccessModifier")]
         public MethodAttributes GetterAccessModifier { get; internal init; }
 
-        public static PropertyData? CreatePropertyData(PropertyDataDto dto)
-        {
-            if (ValidatePropertyDto(dto))
-            {
-                return new PropertyData
-                {
-                    Name = dto.Name,
-                    PropertyType = dto.PropertyType,
-                    AccessModifier = AccessModifierToEnum(dto.AccessModifier),
-                    SetterAccessModifier = AccessModifierToEnum(dto.SetterAccessModifier),
-                    GetterAccessModifier = AccessModifierToEnum(dto.GetterAccessModifier),
-                };
-            }
-
-            return null;
-        }
-
         public PropertyDataDto CreatePropertyDataDto()
         {
-           return new PropertyDataDto
+            return new PropertyDataDto
             {
                 Name = Name,
-                PropertyType = PropertyType,
+                PropertyType = PropertyType.ToString(),
                 AccessModifier = AccessModifier.ToString(),
                 SetterAccessModifier = SetterAccessModifier.ToString(),
                 GetterAccessModifier = GetterAccessModifier.ToString(),
@@ -54,6 +37,23 @@ namespace ClassCreator.Data.Utility.Entity
             var getterModifier = AccessModifier == GetterAccessModifier ? string.Empty : $"{GetterAccessModifier} ";
 
             return $"{AccessModifier} {PropertyType} {Name} {{ {getterModifier}get; {setterModifier}set; }}";
+        }
+
+        internal static PropertyData? CreatePropertyData(PropertyDataDto dto)
+        {
+            if (ValidatePropertyDto(dto))
+            {
+                return new PropertyData
+                {
+                    Name = dto.Name,
+                    PropertyType = Type.GetType(dto.PropertyType),
+                    AccessModifier = AccessModifierToEnum(dto.AccessModifier),
+                    SetterAccessModifier = AccessModifierToEnum(dto.SetterAccessModifier),
+                    GetterAccessModifier = AccessModifierToEnum(dto.GetterAccessModifier),
+                };
+            }
+
+            return null;
         }
 
         private static bool ValidatePropertyDto(PropertyDataDto dto)
