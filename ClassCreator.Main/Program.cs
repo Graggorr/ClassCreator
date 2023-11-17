@@ -1,7 +1,7 @@
+using ClassCreator.Controllers.Core;
 using ClassCreator.Data.Common;
 using ClassCreator.Data.Core;
 using System.Reflection;
-using System.Xml;
 
 namespace ClassCreator.Main
 {
@@ -29,19 +29,14 @@ namespace ClassCreator.Main
             var builder = WebApplication.CreateBuilder(args);
             var services = builder.Services;
             services
-                .AddLogging()
-                .AddSingleton<IObjectHandler, ObjectHandler>()
+                .AddTransient<IObjectHandler, ObjectHandler>()
                 .AddEndpointsApiExplorer()
                 .AddSwaggerGen()
-                .AddMvcCore();
+                .AddLogging()
+                .AddOptions()
+                .AddMvc().AddApplicationPart(Assembly.GetAssembly(typeof(ObjectController))).AddControllersAsServices();
 
             return builder.Build();
-        }
-
-        private static void PrepareAssembly()
-        {
-            var xmlDocument = new XmlDocument();
-            xmlDocument.CreateElement("1");
         }
     }
 }

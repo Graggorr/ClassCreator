@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 using System.Reflection.Emit;
 using System.Reflection;
 
-namespace ClassCreator.Data.Core
+namespace ClassCreator.Data.Utility
 {
     internal class AssemblyHelper
     {
@@ -37,29 +37,32 @@ namespace ClassCreator.Data.Core
                 return null;
             }
 
-            var tasks = new List<Task<bool>>();
-
             //define all properties
-            objectData.Properties.ForEach(property =>
+            var tasks = objectData.Properties.Select(async property =>
             {
-                var task = Task.Factory.StartNew(() =>
+                _logger.Log(LogLevel.Trace, $"{methodName} - Defining {property.Name} property");
+
+                try
                 {
-                    _logger.Log(LogLevel.Trace, $"{methodName} - Defining {property.Name} property");
+                    var propertyBuilder = typeBuilder.DefineProperty(property.Name, PropertyAttributes.HasDefault, property.PropertyType, Type.EmptyTypes);
+                    var fieldBuilder = typeBuilder.DefineField(property.Name, property.PropertyType, FieldAttributes.Private);
 
-                    try
+                    //getter
+                    if (property.GetterAccessModifier != null)
                     {
-                        var propertyBuilder = typeBuilder.DefineProperty(property.Name, PropertyAttributes.HasDefault, property.PropertyType, Type.EmptyTypes);
-                        var fieldBuilder = typeBuilder.DefineField(property.Name, property.PropertyType, FieldAttributes.Private);
-
-                        //getter
-                        var getterBuilder = typeBuilder.DefineMethod($"get_{property.Name}", property.GetterAccessModifier, property.PropertyType, Type.EmptyTypes);
+                        var getterBuilder = typeBuilder.DefineMethod($"get_{property.Name}", property.GetterAccessModifier.Value, property.PropertyType, Type.EmptyTypes);
                         var getterIlGenerator = getterBuilder.GetILGenerator();
                         getterIlGenerator.Emit(OpCodes.Ldarg_0);
                         getterIlGenerator.Emit(OpCodes.Ldfld, fieldBuilder);
                         getterIlGenerator.Emit(OpCodes.Ret);
 
-                        //setter
-                        var setterBuilder = typeBuilder.DefineMethod($"set_{property.Name}", property.SetterAccessModifier, null, new[] { property.PropertyType });
+                        propertyBuilder.SetGetMethod(getterBuilder);
+                    }
+
+                    //setter
+                    if (property.SetterAccessModifier != null)
+                    {
+                        var setterBuilder = typeBuilder.DefineMethod($"set_{property.Name}", property.SetterAccessModifier.Value, null, new[] { property.PropertyType });
                         var setterIlGenerator = setterBuilder.GetILGenerator();
                         setterIlGenerator.Emit(OpCodes.Ldarg_0);
                         setterIlGenerator.Emit(OpCodes.Ldarg_1);
@@ -67,21 +70,18 @@ namespace ClassCreator.Data.Core
                         setterIlGenerator.Emit(OpCodes.Ret);
 
                         propertyBuilder.SetSetMethod(setterBuilder);
-                        propertyBuilder.SetGetMethod(getterBuilder);
-
-                        _logger.Log(LogLevel.Trace, $"{methodName} - Defining of {property.Name} has been finished");
-
-                        return true;
                     }
-                    catch (Exception exception)
-                    {
-                        _logger.Log(LogLevel.Error, $"{methodName} - Cannot perform defining of {property.Name}. ERROR: {exception.Message}");
 
-                        return false;
-                    }
-                });
+                    _logger.Log(LogLevel.Trace, $"{methodName} - Defining of {property.Name} has been finished");
 
-                tasks.Add(task);
+                    return await Task.FromResult(true);
+                }
+                catch (Exception exception)
+                {
+                    _logger.Log(LogLevel.Error, $"{methodName} - Cannot perform defining of {property.Name}. ERROR: {exception.Message}");
+
+                    return await Task.FromResult(false);
+                }
             });
 
             Task.WaitAll(tasks.ToArray());

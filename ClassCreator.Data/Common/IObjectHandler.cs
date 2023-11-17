@@ -1,14 +1,13 @@
 ﻿using ClassCreator.Data.Utility.DTO;
-using ClassCreator.Data.Utility.Entity;
 
 namespace ClassCreator.Data.Common
 {
     public interface IObjectHandler
     {
-        public bool AddOrUpdate(ObjectDataDto objectDataDto);
-        public ObjectData? Get(string name);
-        public IEnumerable<ObjectData> GetAll();
-        public bool Remove(string name);
-        public bool Remove(Type type);
+        public Task<bool> AddOrUpdate(ObjectDataDto objectDataDto);
+        public Task<ObjectDataDto?> Get(string typeName);
+        public IEnumerable<ObjectDataDto> GetAll();
+        public bool Remove(string typeName);
+        public Task<object?> TryGetInstance(string typeName);
     }
 }
