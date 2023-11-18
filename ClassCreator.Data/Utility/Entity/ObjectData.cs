@@ -3,7 +3,7 @@ using System.Reflection;
 
 namespace ClassCreator.Data.Utility.Entity
 {
-    public class ObjectData
+    internal class ObjectData
     {
         internal ObjectData() { }
 

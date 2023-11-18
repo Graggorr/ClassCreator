@@ -3,7 +3,7 @@ using System.Reflection;
 
 namespace ClassCreator.Data.Utility.Entity
 {
-    public class PropertyData
+    internal class PropertyData
     {
         internal PropertyData() { }
 

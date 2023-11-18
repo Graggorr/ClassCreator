@@ -20,6 +20,7 @@ namespace ClassCreator.Data.Core
         private readonly ILogger _logger;
         private readonly ObjectDataParser _objectDataParser;
         private readonly AssemblyHelper _assemblyHelper;
+        private readonly FileSystemWatcher _fileSystemWatcher;
 
         static ObjectHandler()
         {
@@ -40,46 +41,58 @@ namespace ClassCreator.Data.Core
 
         internal static string ClassDirectoryPath => _classDirectoryPath;
 
-        public async Task<bool> AddOrUpdate(ObjectDataDto objectDataDto)
+        public async Task<bool> Add(ObjectDataDto objectDataDto)
         {
-            var methodName = nameof(AddOrUpdate);
-
-            var objectData = _objectDataParser.CreateObjectData(objectDataDto);
+            var methodName = nameof(Add);
+            var objectData = CreateObjectDataInternal(objectDataDto);
 
             if (objectData is null)
             {
                 return false;
             }
 
-            var assembly = _assemblyHelper.GetDynamicAssembly(objectData);
+            var jsonPath = Path.Combine(_classDirectoryPath, objectData.Name, JSON_EXTENSION);
+            var csharpPath = Path.Combine(_classDirectoryPath, objectData.Name, CSHARP_EXTESNION);
 
-            if (assembly is null)
+            if (File.Exists(jsonPath) || File.Exists(csharpPath))
             {
-                _logger.Log(LogLevel.Error, $"{methodName} - Cannot perform operation");
+                _logger.Log(LogLevel.Warning, $"{methodName} - The chosen object already exists.");
 
                 return false;
             }
 
-            var result = assembly.CreateInstance(objectData.Name);
+            var serializedData = JsonConvert.SerializeObject(objectData);
+            await File.WriteAllTextAsync(csharpPath, objectData.ToString());
+            await File.WriteAllTextAsync(jsonPath, serializedData);
+            _logger.Log(LogLevel.Information, $"{methodName} - {objectData.Name} has been added");
 
-            if (result is null)
+            return true;
+        }
+
+        public async Task<bool> Update(ObjectDataDto objectDataDto)
+        {
+            var methodName = nameof(Update);
+            var objectData = CreateObjectDataInternal(objectDataDto);
+
+            if (objectData is null)
             {
-                _logger.Log(LogLevel.Error, $"{methodName} - Cannot create the instance of {objectData.Name}");
+                return false;
+            }
+
+            var jsonPath = Path.Combine(_classDirectoryPath, objectData.Name, JSON_EXTENSION);
+            var csharpPath = Path.Combine(_classDirectoryPath, objectData.Name, CSHARP_EXTESNION);
+
+            if (!File.Exists(jsonPath) || !File.Exists(csharpPath))
+            {
+                _logger.Log(LogLevel.Warning, $"{methodName} - The chosen object does not exist.");
 
                 return false;
             }
 
-            var isFileExist = false;
-            var path = Path.Combine(_classDirectoryPath, objectData.Name, CSHARP_EXTESNION);
-
-            if (File.Exists(path))
-            {
-                isFileExist = true;
-            }
-
-            await File.WriteAllTextAsync(path, objectData.ToString());
-            var value = isFileExist ? "updated." : "added.";
-            _logger.Log(LogLevel.Information, $"{methodName} - {objectData.Name} has been {value}");
+            var serializedData = JsonConvert.SerializeObject(objectData);
+            await File.WriteAllTextAsync(csharpPath, objectData.ToString());
+            await File.WriteAllTextAsync(jsonPath, serializedData);
+            _logger.Log(LogLevel.Information, $"{methodName} - {objectData.Name} has been updated");
 
             return true;
         }
@@ -194,6 +207,37 @@ namespace ClassCreator.Data.Core
             }
 
             return assembly.CreateInstance(objectData.Name);
+        }
+
+        private ObjectData? CreateObjectDataInternal(ObjectDataDto objectDataDto)
+        {
+            var methodName = nameof(CreateObjectDataInternal);
+            var objectData = _objectDataParser.CreateObjectData(objectDataDto);
+
+            if (objectData is null)
+            {
+                return null;
+            }
+
+            var assembly = _assemblyHelper.GetDynamicAssembly(objectData);
+
+            if (assembly is null)
+            {
+                _logger.Log(LogLevel.Error, $"{methodName} - Cannot perform operation");
+
+                return null;
+            }
+
+            var result = assembly.CreateInstance(objectData.Name);
+
+            if (result is null)
+            {
+                _logger.Log(LogLevel.Error, $"{methodName} - Cannot create the instance of {objectData.Name}");
+
+                return null;
+            }
+
+            return objectData;
         }
 
         internal static async Task<ObjectData?> GetObjectDataFromFile(string path)
