@@ -15,6 +15,6 @@ namespace ClassCreator.Data.Utility.Entity
         public string Name { get; internal init; }
         [JsonProperty("properties")]
         public List<PropertyData> Properties { get; internal init; }
-        public override string ToString() => $"{AccessModifier} {DataType} {Name}\n{{\n{string.Join('\n', Properties)}\n}}";
+        public override string ToString() => $"{AccessModifier.ToString().ToLower()} {DataType.ToLower()} {Name}\n{{\n{string.Join('\n', Properties)}\n}}";
     }
 }

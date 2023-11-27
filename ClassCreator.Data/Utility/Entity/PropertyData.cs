@@ -20,10 +20,23 @@ namespace ClassCreator.Data.Utility.Entity
 
         public override string ToString()
         {
-            var setterModifier = AccessModifier == SetterAccessModifier ? string.Empty : $"{SetterAccessModifier} ";
-            var getterModifier = AccessModifier == GetterAccessModifier ? string.Empty : $"{GetterAccessModifier} ";
+            var setterModifier = AccessModifier.Equals(SetterAccessModifier) ? $"{SetterAccessModifier?.ToString().ToLower()} set; " : string.Empty;
+            var getterModifier = AccessModifier.Equals(GetterAccessModifier) ? $"{GetterAccessModifier?.ToString().ToLower()} get; " : string.Empty;
 
-            return $"{AccessModifier} {PropertyType} {Name} {{ {getterModifier}get; {setterModifier}set; }}";
+            return $"{AccessModifier.ToString().ToLower()} {PropertyType} {Name} {{ {getterModifier}{setterModifier}}}";
         }
+
+        private static string ConvertPropertyType(string typeName) => typeName switch
+        {
+            nameof(UInt16) => "ushort",
+            nameof(Int16) => "short",
+            nameof(UInt32) => "uint",
+            nameof(Int32) => "int",
+            nameof(UInt64) => "ulong",
+            nameof(Int64) => "long",
+            nameof(IntPtr) => "nint",
+            nameof(UIntPtr) => "nuint",
+            nameof(Single) => "float",
+        };
     }
 }

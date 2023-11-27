@@ -9,7 +9,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ClassCreator.Controllers", 
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ClassCreator.Data", "ClassCreator.Data\ClassCreator.Data.csproj", "{19EAE172-FD5C-4F46-9823-0135EFF4D6E1}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClassCreator.Infrastructure", "ClassCreator.Infrastructure\ClassCreator.Infrastructure.csproj", "{51D576C5-2BC4-44F6-A555-DAAC424DC67B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ClassCreator.Infrastructure", "ClassCreator.Infrastructure\ClassCreator.Infrastructure.csproj", "{51D576C5-2BC4-44F6-A555-DAAC424DC67B}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ClassCreator.UnitTests", "ClassCreator.UnitTests\ClassCreator.UnitTests.csproj", "{386D2F4D-CAE4-40FD-B9A5-25F01F2FC040}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -51,6 +53,14 @@ Global
 		{51D576C5-2BC4-44F6-A555-DAAC424DC67B}.Release|Any CPU.Build.0 = Release|Any CPU
 		{51D576C5-2BC4-44F6-A555-DAAC424DC67B}.Release|x64.ActiveCfg = Release|Any CPU
 		{51D576C5-2BC4-44F6-A555-DAAC424DC67B}.Release|x64.Build.0 = Release|Any CPU
+		{386D2F4D-CAE4-40FD-B9A5-25F01F2FC040}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{386D2F4D-CAE4-40FD-B9A5-25F01F2FC040}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{386D2F4D-CAE4-40FD-B9A5-25F01F2FC040}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{386D2F4D-CAE4-40FD-B9A5-25F01F2FC040}.Debug|x64.Build.0 = Debug|Any CPU
+		{386D2F4D-CAE4-40FD-B9A5-25F01F2FC040}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{386D2F4D-CAE4-40FD-B9A5-25F01F2FC040}.Release|Any CPU.Build.0 = Release|Any CPU
+		{386D2F4D-CAE4-40FD-B9A5-25F01F2FC040}.Release|x64.ActiveCfg = Release|Any CPU
+		{386D2F4D-CAE4-40FD-B9A5-25F01F2FC040}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

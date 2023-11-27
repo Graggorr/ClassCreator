@@ -1,5 +1,4 @@
 ﻿using ClassCreator.Data.Common;
-using ClassCreator.Data.Core;
 using ClassCreator.Data.Utility.DTO;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -57,7 +56,14 @@ namespace ClassCreator.Controllers.Core
         [HttpGet("/")]
         public IActionResult GetAll()
         {
-            return Ok(_objectCreator.GetAll());
+            var result = _objectCreator.GetAll();
+
+            if (!result.Any())
+            {
+                return new EmptyResult();
+            }
+
+            return Ok(result);
         }
 
         [HttpDelete("/{name}/")]

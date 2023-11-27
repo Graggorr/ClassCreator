@@ -4,7 +4,7 @@ using ClassCreator.Data.Utility.DTO;
 using ClassCreator.Data.Utility.Entity;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
-using Nito.AsyncEx;
+using System.Collections.Concurrent;
 using System.Reflection;
 
 namespace ClassCreator.Data.Core
@@ -20,7 +20,6 @@ namespace ClassCreator.Data.Core
         private readonly ILogger _logger;
         private readonly ObjectDataParser _objectDataParser;
         private readonly AssemblyHelper _assemblyHelper;
-        private readonly FileSystemWatcher _fileSystemWatcher;
 
         static ObjectHandler()
         {
@@ -41,65 +40,13 @@ namespace ClassCreator.Data.Core
 
         internal static string ClassDirectoryPath => _classDirectoryPath;
 
-        public async Task<bool> Add(ObjectDataDto objectDataDto)
-        {
-            var methodName = nameof(Add);
-            var objectData = CreateObjectDataInternal(objectDataDto);
+        public async Task<bool> Add(ObjectDataDto objectDataDto) => await AddOrUpdateCore(objectDataDto, true);
 
-            if (objectData is null)
-            {
-                return false;
-            }
-
-            var jsonPath = Path.Combine(_classDirectoryPath, objectData.Name, JSON_EXTENSION);
-            var csharpPath = Path.Combine(_classDirectoryPath, objectData.Name, CSHARP_EXTESNION);
-
-            if (File.Exists(jsonPath) || File.Exists(csharpPath))
-            {
-                _logger.Log(LogLevel.Warning, $"{methodName} - The chosen object already exists.");
-
-                return false;
-            }
-
-            var serializedData = JsonConvert.SerializeObject(objectData);
-            await File.WriteAllTextAsync(csharpPath, objectData.ToString());
-            await File.WriteAllTextAsync(jsonPath, serializedData);
-            _logger.Log(LogLevel.Information, $"{methodName} - {objectData.Name} has been added");
-
-            return true;
-        }
-
-        public async Task<bool> Update(ObjectDataDto objectDataDto)
-        {
-            var methodName = nameof(Update);
-            var objectData = CreateObjectDataInternal(objectDataDto);
-
-            if (objectData is null)
-            {
-                return false;
-            }
-
-            var jsonPath = Path.Combine(_classDirectoryPath, objectData.Name, JSON_EXTENSION);
-            var csharpPath = Path.Combine(_classDirectoryPath, objectData.Name, CSHARP_EXTESNION);
-
-            if (!File.Exists(jsonPath) || !File.Exists(csharpPath))
-            {
-                _logger.Log(LogLevel.Warning, $"{methodName} - The chosen object does not exist.");
-
-                return false;
-            }
-
-            var serializedData = JsonConvert.SerializeObject(objectData);
-            await File.WriteAllTextAsync(csharpPath, objectData.ToString());
-            await File.WriteAllTextAsync(jsonPath, serializedData);
-            _logger.Log(LogLevel.Information, $"{methodName} - {objectData.Name} has been updated");
-
-            return true;
-        }
+        public async Task<bool> Update(ObjectDataDto objectDataDto) => await AddOrUpdateCore(objectDataDto, false);
 
         public IEnumerable<ObjectDataDto> GetAll()
         {
-            var asyncCollection = new AsyncCollection<ObjectDataDto>();
+            var concurrentBag = new ConcurrentBag<ObjectDataDto>();
             var allPaths = Directory.GetFiles(_classDirectoryPath).Where(x => x.Contains(JSON_EXTENSION));
 
             var tasks = allPaths.Select(path =>
@@ -111,14 +58,14 @@ namespace ClassCreator.Data.Core
                     if (objectData is not null)
                     {
                         var dto = ObjectDataParser.GetObjectDataDto(objectData);
-                        await asyncCollection.AddAsync(dto);
+                        concurrentBag.Add(dto);
                     }
                 });
             }).ToArray();
 
             Task.WaitAll(tasks);
 
-            return asyncCollection.GetConsumingEnumerable().ToList();
+            return concurrentBag;
         }
 
         public async Task<ObjectDataDto?> Get(string typeName)
@@ -196,9 +143,9 @@ namespace ClassCreator.Data.Core
                 return null;
             }
 
-            var assembly = _assemblyHelper.GetDynamicAssembly(objectData);
+            var type = _assemblyHelper.CreateTypeWithDynamicAssembly(objectData);
 
-            if (assembly is null)
+            if (type is null)
             {
                 _logger.Log(LogLevel.Debug, $"{methodName} - Cannot create an assembly for chosen type {objectData.Name}.");
                 _logger.Log(LogLevel.Error, $"{methodName} - Cannot create instance of chosen type.");
@@ -206,7 +153,55 @@ namespace ClassCreator.Data.Core
                 return null;
             }
 
-            return assembly.CreateInstance(objectData.Name);
+            var instance = _assemblyHelper.GetInstance(type);
+
+            if (instance is null)
+            {
+                _logger.Log(LogLevel.Error, $"{methodName} - Cannot create instance of chosen type");
+            }
+
+            return instance;
+        }
+
+        private async Task<bool> AddOrUpdateCore(ObjectDataDto objectDataDto, bool isToAdd)
+        {
+            var methodName = nameof(AddOrUpdateCore);
+            var objectData = CreateObjectDataInternal(objectDataDto);
+
+            if (objectData is null)
+            {
+                return false;
+            }
+
+            var jsonPath = Path.Combine(_classDirectoryPath, objectData.Name, JSON_EXTENSION);
+            var csharpPath = Path.Combine(_classDirectoryPath, objectData.Name, CSHARP_EXTESNION);
+
+            if (isToAdd)
+            {
+                if (File.Exists(jsonPath) || File.Exists(csharpPath))
+                {
+                    _logger.Log(LogLevel.Warning, $"{methodName} - The chosen object already exists.");
+
+                    return false;
+                }
+            }
+            else
+            {
+                if (!File.Exists(jsonPath) || !File.Exists(csharpPath))
+                {
+                    _logger.Log(LogLevel.Warning, $"{methodName} - The chosen object does not exist.");
+
+                    return false;
+                }
+            }
+
+            var serializedData = JsonConvert.SerializeObject(objectData);
+            await File.WriteAllTextAsync(csharpPath, objectData.ToString());
+            await File.WriteAllTextAsync(jsonPath, serializedData);
+            var logResult = isToAdd ? "added" : "updated";
+            _logger.Log(LogLevel.Information, $"{methodName} - {objectData.Name} has been {logResult}");
+
+            return true;
         }
 
         private ObjectData? CreateObjectDataInternal(ObjectDataDto objectDataDto)
@@ -219,20 +214,11 @@ namespace ClassCreator.Data.Core
                 return null;
             }
 
-            var assembly = _assemblyHelper.GetDynamicAssembly(objectData);
+            var type = _assemblyHelper.CreateTypeWithDynamicAssembly(objectData);
 
-            if (assembly is null)
+            if (type is null)
             {
                 _logger.Log(LogLevel.Error, $"{methodName} - Cannot perform operation");
-
-                return null;
-            }
-
-            var result = assembly.CreateInstance(objectData.Name);
-
-            if (result is null)
-            {
-                _logger.Log(LogLevel.Error, $"{methodName} - Cannot create the instance of {objectData.Name}");
 
                 return null;
             }

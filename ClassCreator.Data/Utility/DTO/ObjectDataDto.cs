@@ -5,9 +5,9 @@ namespace ClassCreator.Data.Utility.DTO
     public class ObjectDataDto
     {
         [JsonProperty("accessModifier")]
-        public string AccessModifier { get; internal init; }
+        public string AccessModifier { get; set; }
         [JsonProperty("dataType")]
-        public string DataType { get; internal init; }
+        public string DataType { get; set; }
         [JsonProperty("name")]
         public string Name { get; set; }
         [JsonProperty("propertyData")]

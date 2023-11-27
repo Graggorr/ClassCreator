@@ -1,8 +1,9 @@
 ﻿using ClassCreator.Data.Utility.DTO;
 using ClassCreator.Data.Utility.Entity;
-using System.Reflection;
-using Nito.AsyncEx;
 using ClassCreator.Data.Utility;
+using System.Reflection;
+using System.Collections.Concurrent;
+using System;
 
 namespace ClassCreator.Data.Core
 {
@@ -22,7 +23,7 @@ namespace ClassCreator.Data.Core
                 return null;
             }
 
-            var asyncCollection = new AsyncCollection<PropertyData>();
+            var concurrentBag = new ConcurrentBag<PropertyData>();
 
             var tasks = dto.PropertyData.Select(async x =>
             {
@@ -30,15 +31,15 @@ namespace ClassCreator.Data.Core
 
                 if (result != null)
                 {
-                    await asyncCollection.AddAsync(result);
+                    await Task.Run(() => concurrentBag.Add(result));
 
                     return true;
                 }
 
                 return false;
-            });
+            }).ToArray();
 
-            Task.WaitAll(tasks.ToArray());
+            Task.WaitAll(tasks);
 
             if (tasks.All(x => x.Result))
             {
@@ -51,7 +52,7 @@ namespace ClassCreator.Data.Core
                         Name = dto.Name,
                         AccessModifier = accessModifier.Value,
                         DataType = dto.DataType,
-                        Properties = asyncCollection.GetConsumingEnumerable().ToList(),
+                        Properties = concurrentBag.ToList(),
                     };
                 }
             }
@@ -66,30 +67,29 @@ namespace ClassCreator.Data.Core
                 Name = objectData.Name,
             };
 
-            var asyncCollection = new AsyncCollection<PropertyDataDto>();
+            var concurrentBag = new ConcurrentBag<PropertyDataDto>();
 
             var tasks = objectData.Properties.Select(x =>
             {
-                return asyncCollection.AddAsync(new PropertyDataDto
+                return Task.Run(() => concurrentBag.Add(new PropertyDataDto
                 {
                     Name = x.Name,
                     PropertyType = x.PropertyType.Name,
                     AccessModifier = x.AccessModifier.ToString(),
                     GetterAccessModifier = x.GetterAccessModifier.ToString() ?? string.Empty,
                     SetterAccessModifier = x.SetterAccessModifier.ToString() ?? string.Empty,
-                });
-            });
+                }));
+            }).ToArray();
 
-            Task.WaitAll(tasks.ToArray());
-
-            dto.PropertyData = asyncCollection.GetConsumingEnumerable().ToList();
+            Task.WaitAll(tasks);
+            dto.PropertyData = concurrentBag.ToList();
 
             return dto;
         }
 
         private PropertyData? CreatePropertyData(PropertyDataDto dto)
         {
-            if (dto == null || string.IsNullOrEmpty(dto.SetterAccessModifier))
+            if (dto is null)
             {
                 return null;
             }
@@ -118,20 +118,23 @@ namespace ClassCreator.Data.Core
             var setterModifierTask = Task.Run(() =>
             {
                 setterModifier = AccessModifierToEnum(dto.SetterAccessModifier);
-
-                return setterModifier is not null;
             });
             var getterModifierTask = Task.Run(() =>
             {
                 getterModifier = AccessModifierToEnum(dto.GetterAccessModifier);
-
-                return getterModifier is not null;
             });
 
-            var tasks = new Task<bool>[] { nameTask, typeTask, accessModifierTask, getterModifierTask, setterModifierTask };
+            var tasks = new Task<bool>[] { nameTask, typeTask, accessModifierTask };
             Task.WaitAll(tasks);
+            Task.WaitAll(getterModifierTask, setterModifierTask);
 
-            if (!tasks.All(x => x.Result) || !((int)accessModifier.Value >= (int)getterModifier.Value && (int)accessModifier.Value >= (int)setterModifier.Value))
+            if (!tasks.All(x => x.Result))
+            {
+                return null;
+            }
+
+            if (setterModifier is not null && setterModifier.Value > accessModifier.Value ||
+                getterModifier is not null && getterModifier.Value > accessModifier.Value)
             {
                 return null;
             }
@@ -159,7 +162,7 @@ namespace ClassCreator.Data.Core
                 "protected" => MethodAttributes.Family,
                 "internal" => MethodAttributes.Assembly,
                 "public" => MethodAttributes.Public,
-                _ => null,
+                _ => null
             };
         }
 
@@ -168,6 +171,7 @@ namespace ClassCreator.Data.Core
             Type? type = null;
             var assemblies = AppDomain.CurrentDomain.GetAssemblies();
             var cancellationTokenSource = new CancellationTokenSource();
+            typeName = ConvertTypeName(typeName);
 
             var tasks = assemblies.Select(x =>
             {
@@ -192,12 +196,25 @@ namespace ClassCreator.Data.Core
 
                 if (objectData is not null)
                 {
-                    var assembly = _assemblyHelper.GetDynamicAssembly(objectData);
-                    type = assembly?.GetTypes().FirstOrDefault(x => x.Name.Equals(typeName, StringComparison.CurrentCultureIgnoreCase));
+                    type = _assemblyHelper.CreateTypeWithDynamicAssembly(objectData);
                 }
             }
 
             return type;
         }
+
+        private static string ConvertTypeName(string typeName) => typeName.ToLower() switch
+        {
+            "ushort" => nameof(UInt16),
+            "short" => nameof(Int16),
+            "uint" => nameof(UInt32),
+            "int" => nameof(Int32),
+            "ulong" => nameof(UInt32),
+            "long" => nameof(Int64),
+            "nint" => nameof(IntPtr),
+            "nuint" => nameof(UIntPtr),
+            "float" => nameof(Single),
+            _ => typeName
+        };
     }
 }
