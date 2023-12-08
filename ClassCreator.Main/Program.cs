@@ -1,5 +1,7 @@
+using ClassCreator.Controllers.Core;
 using ClassCreator.Data.Common;
 using ClassCreator.Data.Core;
+using System.Reflection;
 
 namespace ClassCreator.Main
 {
@@ -26,12 +28,13 @@ namespace ClassCreator.Main
         {
             var builder = WebApplication.CreateBuilder(args);
             var services = builder.Services;
-                
             services
-                .AddSingleton<IObjectCreator, ObjectCreator>()
+                .AddTransient<IObjectHandler, ObjectHandler>()
                 .AddEndpointsApiExplorer()
                 .AddSwaggerGen()
-                .AddMvcCore();
+                .AddLogging()
+                .AddOptions()
+                .AddMvc().AddApplicationPart(Assembly.GetAssembly(typeof(ObjectController))).AddControllersAsServices();
 
             return builder.Build();
         }
