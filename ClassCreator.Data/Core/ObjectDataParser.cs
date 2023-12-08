@@ -24,19 +24,21 @@ namespace ClassCreator.Data.Core
             }
 
             var concurrentBag = new ConcurrentBag<PropertyData>();
-
-            var tasks = dto.PropertyData.Select(async x =>
+            var tasks = dto.PropertyData.Select(x =>
             {
-                var result = CreatePropertyData(x);
-
-                if (result != null)
+                return Task.Factory.StartNew(() =>
                 {
-                    await Task.Run(() => concurrentBag.Add(result));
+                    var result = CreatePropertyData(x);
 
-                    return true;
-                }
+                    if (result != null)
+                    {
+                        concurrentBag.Add(result);
 
-                return false;
+                        return true;
+                    }
+
+                    return false;
+                });
             }).ToArray();
 
             Task.WaitAll(tasks);
@@ -170,7 +172,6 @@ namespace ClassCreator.Data.Core
         {
             Type? type = null;
             var assemblies = AppDomain.CurrentDomain.GetAssemblies();
-            var cancellationTokenSource = new CancellationTokenSource();
             typeName = ConvertTypeName(typeName);
 
             var tasks = assemblies.Select(x =>
@@ -182,9 +183,8 @@ namespace ClassCreator.Data.Core
                     if (result is not null)
                     {
                         type = result;
-                        cancellationTokenSource.Cancel();
                     }
-                }, cancellationTokenSource.Token);
+                });
             }).ToArray();
 
             Task.WaitAll(tasks);
@@ -192,7 +192,7 @@ namespace ClassCreator.Data.Core
             if (type is null)
             {
                 var path = ObjectHandler.GetFullPath(typeName);
-                var objectData = ObjectHandler.GetObjectDataFromFile(path).GetAwaiter().GetResult();
+                var objectData = ObjectHandler.GetObjectDataFromFile(path);
 
                 if (objectData is not null)
                 {

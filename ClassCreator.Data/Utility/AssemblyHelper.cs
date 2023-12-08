@@ -17,24 +17,29 @@ namespace ClassCreator.Data.Utility
         public Type? CreateTypeWithDynamicAssembly(ObjectData objectData)
         {
             var methodName = nameof(CreateTypeWithDynamicAssembly);
-            var objectAssemblyName = new AssemblyName($"Dynamic.{objectData.Name}");
-            var assemblyBuilder = AssemblyBuilder.DefineDynamicAssembly(objectAssemblyName, AssemblyBuilderAccess.RunAndCollect);
+            var objectAssemblyNameString = $"Dynamic.{objectData.Name}";
+            AssemblyName objectAssemblyName;
+
+            if (AppDomain.CurrentDomain.GetAssemblies().Any(x => x.FullName.Equals(objectAssemblyNameString)))
+            {
+                objectAssemblyName = new AssemblyName($"New{objectAssemblyNameString}");
+            }
+            else
+            {
+                objectAssemblyName = new AssemblyName(objectAssemblyNameString);
+            }
+
+            var assemblyBuilder = AssemblyBuilder.DefineDynamicAssembly(objectAssemblyName, AssemblyBuilderAccess.Run);
             var moduleBuilder = assemblyBuilder.DefineDynamicModule(objectAssemblyName.Name);
             var typeBuilder = moduleBuilder.DefineType(objectData.Name, TypeAttributes.Public);
+            var objectConstructorInfo = typeof(object).GetConstructor(Type.EmptyTypes);
+            var constructorBuilder = typeBuilder.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
+            var constructorIlGenerator = constructorBuilder.GetILGenerator();
 
-            try
-            {
-                var constructorBuilder = typeBuilder.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);
-                var constructorIlGenerator = constructorBuilder.GetILGenerator();
-                constructorIlGenerator.Emit(OpCodes.Ldarg_0);
-                constructorIlGenerator.Emit(OpCodes.Ret);
-            }
-            catch (Exception exception)
-            {
-                _logger.Log(LogLevel.Error, $"{methodName} - ERROR: {exception.Message}");
-
-                return null;
-            }
+            //create default constructor
+            constructorIlGenerator.Emit(OpCodes.Ldarg_0);
+            constructorIlGenerator.Emit(OpCodes.Call, objectConstructorInfo!);
+            constructorIlGenerator.Emit(OpCodes.Ret);
 
             //define all properties
             var tasks = objectData.Properties.Select(property =>
@@ -45,14 +50,14 @@ namespace ClassCreator.Data.Utility
 
                     try
                     {
-                        var propertyBuilder = typeBuilder.DefineProperty(property.Name, PropertyAttributes.None, property.PropertyType, Type.EmptyTypes);
+                        var propertyBuilder = typeBuilder.DefineProperty(property.Name, PropertyAttributes.HasDefault, property.PropertyType, Type.EmptyTypes);
                         var fieldAttributes = property.SetterAccessModifier is null ? FieldAttributes.InitOnly : FieldAttributes.Private | FieldAttributes.SpecialName;
                         var fieldBuilder = typeBuilder.DefineField(property.Name, property.PropertyType, fieldAttributes);
 
                         //getter
                         if (property.GetterAccessModifier is not null)
                         {
-                            var getterBuilder = typeBuilder.DefineMethod($"get_{property.Name}", property.GetterAccessModifier.Value | 
+                            var getterBuilder = typeBuilder.DefineMethod($"get_{property.Name}", property.GetterAccessModifier.Value |
                                 MethodAttributes.HideBySig | MethodAttributes.SpecialName,
                                 property.PropertyType, Type.EmptyTypes);
                             var getterIlGenerator = getterBuilder.GetILGenerator();
@@ -66,9 +71,9 @@ namespace ClassCreator.Data.Utility
                         //setter
                         if (fieldAttributes is not FieldAttributes.InitOnly)
                         {
-                            var setterBuilder = typeBuilder.DefineMethod($"set_{property.Name}", property.SetterAccessModifier.Value | 
+                            var setterBuilder = typeBuilder.DefineMethod($"set_{property.Name}", property.SetterAccessModifier.Value |
                                 MethodAttributes.HideBySig | MethodAttributes.SpecialName,
-                                null, new[] { property.PropertyType });
+                                null, new Type[] { property.PropertyType });
                             var setterIlGenerator = setterBuilder.GetILGenerator();
                             var markedLabel = setterIlGenerator.DefineLabel();
                             setterIlGenerator.Emit(OpCodes.Ldarg_0);
@@ -78,9 +83,7 @@ namespace ClassCreator.Data.Utility
 
                             propertyBuilder.SetSetMethod(setterBuilder);
                         }
-#if DEBUG
-                        var type = typeBuilder.CreateTypeInfo();
-#endif
+
                         _logger.Log(LogLevel.Trace, $"{methodName} - Defining of {property.Name} has been finished");
 
                         return true;
@@ -101,7 +104,6 @@ namespace ClassCreator.Data.Utility
             }
 
             var type = typeBuilder.CreateType();
-            var t = typeof(int);
 
             return GetInstance(type) is not null ? type : null;
         }

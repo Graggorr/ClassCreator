@@ -40,9 +40,9 @@ namespace ClassCreator.Data.Core
 
         internal static string ClassDirectoryPath => _classDirectoryPath;
 
-        public async Task<bool> Add(ObjectDataDto objectDataDto) => await AddOrUpdateCore(objectDataDto, true);
+        public bool Add(ObjectDataDto objectDataDto) => AddOrUpdateCore(objectDataDto, true);
 
-        public async Task<bool> Update(ObjectDataDto objectDataDto) => await AddOrUpdateCore(objectDataDto, false);
+        public bool Update(ObjectDataDto objectDataDto) => AddOrUpdateCore(objectDataDto, false);
 
         public IEnumerable<ObjectDataDto> GetAll()
         {
@@ -53,7 +53,7 @@ namespace ClassCreator.Data.Core
             {
                 return Task.Run(async () =>
                 {
-                    var objectData = await GetObjectDataFromFile(path);
+                    var objectData = GetObjectDataFromFile(path);
 
                     if (objectData is not null)
                     {
@@ -68,18 +68,24 @@ namespace ClassCreator.Data.Core
             return concurrentBag;
         }
 
-        public async Task<ObjectDataDto?> Get(string typeName)
+        public ObjectDataDto? Get(string typeName)
         {
+            var methodName = nameof(Get);
+
             if (string.IsNullOrEmpty(typeName))
             {
+                _logger.Log(LogLevel.Information, $"{methodName} - Type name is empty");
+
                 return null;
             }
 
             var path = GetFullPath(typeName);
-            var result = await GetObjectDataFromFile(path);
+            var result = GetObjectDataFromFile(path);
 
             if (result is null)
             {
+                _logger.Log(LogLevel.Information, $"{methodName} - {typeName} is not found");
+
                 return null;
             }
 
@@ -90,51 +96,69 @@ namespace ClassCreator.Data.Core
         {
             var methodName = nameof(Remove);
 
-            if (string.IsNullOrEmpty(typeName))
+            if (Get(typeName) is null)
             {
-                _logger.Log(LogLevel.Information, $"{methodName} - Type name is empty");
-
                 return false;
             }
 
+            var cancellationTokenSource = new CancellationTokenSource();
+            cancellationTokenSource.CancelAfter(TimeSpan.FromSeconds(1));
             var csharpFilePath = GetFullPath(typeName, false);
             var jsonFilePath = GetFullPath(typeName);
 
             var isJsonFileReady = false;
             var isCsharpFileReady = false;
 
-            while (!isJsonFileReady && !isCsharpFileReady)
+            while (!isJsonFileReady || !isCsharpFileReady)
             {
+                if (cancellationTokenSource.Token.IsCancellationRequested)
+                {
+                    break;
+                }
+
                 try
                 {
                     if (!isJsonFileReady)
                     {
-                        using var jsonFileStream = new FileStream(jsonFilePath, FileMode.Open, FileAccess.Read, FileShare.None);
                         File.Delete(jsonFilePath);
                         isJsonFileReady = true;
-                        jsonFileStream.Close();
                     }
 
                     if (!isCsharpFileReady)
                     {
-                        using var csharpFileStream = new FileStream(csharpFilePath, FileMode.Open, FileAccess.Read, FileShare.None);
                         File.Delete(csharpFilePath);
                         isCsharpFileReady = true;
-                        csharpFileStream.Close();
                     }
                 }
                 catch { }
             }
 
-            _logger.Log(LogLevel.Information, $"{methodName} - {typeName} has been deleted successfully.");
+            if (isCsharpFileReady && isJsonFileReady)
+            {
+                _logger.Log(LogLevel.Information, $"{methodName} - {typeName} has been deleted successfully.");
 
-            return true;
+                return true;
+            }
+
+            _logger.Log(LogLevel.Error, $"{methodName} - Cannot delete {typeName}.");
+
+            if (!isJsonFileReady)
+            {
+                _logger.Log(LogLevel.Debug, $"{methodName} - Cannot delete {typeName}.json file.");
+            }
+
+            if (!isCsharpFileReady)
+            {
+                _logger.Log(LogLevel.Debug, $"{methodName} - Cannot delete {typeName}.cs file.");
+            }
+
+            return false;
         }
 
-        public async Task<object?> TryGetInstance(string typeName)
+        public object? TryGetInstance(string typeName)
         {
             var methodName = nameof(TryGetInstance);
-            var objectData = await GetObjectDataFromFile(typeName);
+            var objectData = GetObjectDataFromFile(GetFullPath(typeName));
 
             if (objectData is null)
             {
@@ -163,7 +187,7 @@ namespace ClassCreator.Data.Core
             return instance;
         }
 
-        private async Task<bool> AddOrUpdateCore(ObjectDataDto objectDataDto, bool isToAdd)
+        private bool AddOrUpdateCore(ObjectDataDto objectDataDto, bool isToAdd)
         {
             var methodName = nameof(AddOrUpdateCore);
             var objectData = CreateObjectDataInternal(objectDataDto);
@@ -173,8 +197,8 @@ namespace ClassCreator.Data.Core
                 return false;
             }
 
-            var jsonPath = Path.Combine(_classDirectoryPath, objectData.Name, JSON_EXTENSION);
-            var csharpPath = Path.Combine(_classDirectoryPath, objectData.Name, CSHARP_EXTESNION);
+            var jsonPath = GetFullPath(objectData.Name, true);
+            var csharpPath = GetFullPath(objectData.Name, false);
 
             if (isToAdd)
             {
@@ -196,13 +220,55 @@ namespace ClassCreator.Data.Core
             }
 
             var serializedData = JsonConvert.SerializeObject(objectData);
-            await File.WriteAllTextAsync(csharpPath, objectData.ToString());
-            await File.WriteAllTextAsync(jsonPath, serializedData);
+            var tasks = new Task<bool>[2]
+            {
+                Task.Run(async () =>
+                {
+                    return await WriteDataIntoFile(csharpPath, objectData.ToString());
+                }),
+                Task.Run(async () =>
+                {
+                    return await WriteDataIntoFile(jsonPath, serializedData);
+                }),
+            };
+
+            Task.WaitAll(tasks);
+
+            if (tasks.Any(x => !x.Result))
+            {
+                return false;
+            }
+
             var logResult = isToAdd ? "added" : "updated";
             _logger.Log(LogLevel.Information, $"{methodName} - {objectData.Name} has been {logResult}");
 
             return true;
         }
+
+        internal static ObjectData? GetObjectDataFromFile(string path)
+        {
+            if (!Path.Exists(path))
+            {
+                return null;
+            }
+
+            using var fileStream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var streamReader = new StreamReader(fileStream);
+            var data = streamReader.ReadToEnd();
+            streamReader.Close();
+            ObjectData result = null;
+
+            try
+            {
+                result = JsonConvert.DeserializeObject<ObjectData>(data);
+            }
+            catch { }
+
+            return result;
+        }
+
+        internal static string GetFullPath(string fileName, bool isJsonFile = true) =>
+            Path.Combine(_classDirectoryPath, fileName + (isJsonFile ? JSON_EXTENSION : CSHARP_EXTESNION));
 
         private ObjectData? CreateObjectDataInternal(ObjectDataDto objectDataDto)
         {
@@ -226,22 +292,26 @@ namespace ClassCreator.Data.Core
             return objectData;
         }
 
-        internal static async Task<ObjectData?> GetObjectDataFromFile(string path)
+        private async Task<bool> WriteDataIntoFile(string path, string data)
         {
-            if (!Path.Exists(path))
+            var methodName = nameof(WriteDataIntoFile);
+
+            try
             {
-                return null;
+                using var fileStream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
+                using var streamWriter = new StreamWriter(fileStream);
+                streamWriter.AutoFlush = true;
+                await streamWriter.WriteAsync(data);
+                streamWriter.Close();
+
+                return true;
             }
+            catch (Exception exception)
+            {
+                _logger.Log(LogLevel.Error, $"{methodName} - ERROR: {exception.Message}");
 
-            using var fileStream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            using var streamReader = new StreamReader(fileStream);
-            var data = await streamReader.ReadToEndAsync();
-            streamReader.Close();
-
-            return JsonConvert.DeserializeObject<ObjectData>(data);
+                return false;
+            }
         }
-
-        internal static string GetFullPath(string fileName, bool isJsonFile = true) =>
-            Path.Combine(_classDirectoryPath, fileName, isJsonFile ? JSON_EXTENSION : CSHARP_EXTESNION);
     }
 }

@@ -19,11 +19,11 @@ namespace ClassCreator.Controllers.Core
         }
 
         [HttpPost("/add/")]
-        public async Task<IActionResult> PostObject(ObjectDataDto objectDataDto)
+        public IActionResult PostObject(ObjectDataDto objectDataDto)
         {
             var methodName = nameof(PostObject);
 
-            var result = await _objectCreator.Add(objectDataDto);
+            var result = _objectCreator.Add(objectDataDto);
 
             if (result)
             {
@@ -38,10 +38,10 @@ namespace ClassCreator.Controllers.Core
         }
 
         [HttpGet("/{name}/")]
-        public async Task<IActionResult> GetObject(string name)
+        public IActionResult GetObject(string name)
         {
             var methodName = nameof(GetObject);
-            var result = await _objectCreator.Get(name);
+            var result = _objectCreator.Get(name);
 
             if (result is not null)
             {
@@ -84,10 +84,10 @@ namespace ClassCreator.Controllers.Core
             return BadRequest();
         }
 
-        public async Task<IActionResult> UpdateObject(string name, ObjectDataDto dto)
+        public IActionResult UpdateObject(string name, ObjectDataDto dto)
         {
             var methodName = nameof(UpdateObject);
-            var result = await _objectCreator.Add(dto);
+            var result = _objectCreator.Update(dto);
 
             if (result)
             {
