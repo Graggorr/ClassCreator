@@ -20,10 +20,22 @@ namespace ClassCreator.Data.Utility.Entity
 
         public override string ToString()
         {
-            var setterModifier = AccessModifier.Equals(SetterAccessModifier) ? $"{SetterAccessModifier?.ToString().ToLower()} set; " : string.Empty;
-            var getterModifier = AccessModifier.Equals(GetterAccessModifier) ? $"{GetterAccessModifier?.ToString().ToLower()} get; " : string.Empty;
+            var setter = string.Empty;
+            var getter = string.Empty;
 
-            return $"{AccessModifier.ToString().ToLower()} {PropertyType} {Name} {{ {getterModifier}{setterModifier}}}";
+            if (SetterAccessModifier is not null)
+            {
+                var setterModifier = AccessModifier.Equals(SetterAccessModifier) ? string.Empty : $"{SetterAccessModifier.ToString().ToLower()} ";
+                setter = $"{setterModifier}set; ";
+            }
+
+            if (GetterAccessModifier is not null)
+            {
+                var getterModifier = AccessModifier.Equals(GetterAccessModifier) ? string.Empty : $"{GetterAccessModifier.ToString().ToLower()} ";
+                getter = $"{getterModifier}get; ";
+            }
+
+            return $"{AccessModifier.ToString().ToLower()} {ConvertPropertyType(PropertyType.Name)} {Name} {{ {getter}{setter}}}";
         }
 
         private static string ConvertPropertyType(string typeName) => typeName switch
