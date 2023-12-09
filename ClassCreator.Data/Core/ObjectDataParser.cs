@@ -203,8 +203,8 @@ namespace ClassCreator.Data.Core
 
             if (type is null)
             {
-                var path = ObjectHandler.GetFullPath(typeName);
-                var objectData = ObjectHandler.GetObjectDataFromFile(path);
+                var path = ObjectDataStream.GetFullPath(typeName);
+                var objectData = ObjectDataStream.GetObjectDataFromFile(path);
 
                 if (objectData is not null)
                 {

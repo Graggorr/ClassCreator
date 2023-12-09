@@ -49,6 +49,7 @@ namespace ClassCreator.Data.Utility.Entity
             nameof(IntPtr) => "nint",
             nameof(UIntPtr) => "nuint",
             nameof(Single) => "float",
+            _ => typeName
         };
     }
 }
