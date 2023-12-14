@@ -3,10 +3,12 @@ using ClassCreator.Data.Utility.Entity;
 using ClassCreator.Data.Utility;
 using System.Reflection;
 using System.Collections.Concurrent;
-using System;
 
 namespace ClassCreator.Data.Core
 {
+    /// <summary>
+    /// A class which parses <see cref="ObjectDataDto"/> to <see cref="ObjectData"/> and opposite.
+    /// </summary>
     internal class ObjectDataParser
     {
         private readonly AssemblyHelper _assemblyHelper;
@@ -16,6 +18,11 @@ namespace ClassCreator.Data.Core
             _assemblyHelper = assemblyHelper;
         }
 
+        /// <summary>
+        /// Converts incoming instance of <see cref="ObjectDataDto"/> to <see cref="ObjectData"/>
+        /// </summary>
+        /// <param name="dto">The chosen dto to be converted</param>
+        /// <returns>A new created instance of <see cref="ObjectData"/> if validation is success; otherwise - null</returns>
         public ObjectData? CreateObjectData(ObjectDataDto dto)
         {
             if (dto is null || string.IsNullOrEmpty(dto.Name) || string.IsNullOrEmpty(dto.DataType) || string.IsNullOrEmpty(dto.AccessModifier))
@@ -62,11 +69,18 @@ namespace ClassCreator.Data.Core
             return null;
         }
 
-        public static ObjectDataDto GetObjectDataDto(ObjectData objectData)
+        /// <summary>
+        /// Converts incoming instance of <see cref="ObjectData"/> into the <see cref="ObjectDataDto"/>
+        /// </summary>
+        /// <param name="objectData">Instance of <see cref="ObjectData"/> to be converted</param>
+        /// <returns>A new created instance of <see cref="ObjectDataDto"/></returns>
+        public ObjectDataDto GetObjectDataDto(ObjectData objectData)
         {
             var dto = new ObjectDataDto()
             {
                 Name = objectData.Name,
+                AccessModifier = objectData.AccessModifier.ToString(),
+                DataType = objectData.DataType,
             };
 
             var concurrentBag = new ConcurrentBag<PropertyDataDto>();
@@ -78,8 +92,8 @@ namespace ClassCreator.Data.Core
                     Name = x.Name,
                     PropertyType = x.PropertyType.Name,
                     AccessModifier = x.AccessModifier.ToString(),
-                    GetterAccessModifier = x.GetterAccessModifier.ToString() ?? string.Empty,
-                    SetterAccessModifier = x.SetterAccessModifier.ToString() ?? string.Empty,
+                    GetterAccessModifier = x.GetterAccessModifier?.ToString(),
+                    SetterAccessModifier = x.SetterAccessModifier?.ToString(),
                 }));
             }).ToArray();
 
@@ -191,8 +205,8 @@ namespace ClassCreator.Data.Core
 
             if (type is null)
             {
-                var path = ObjectHandler.GetFullPath(typeName);
-                var objectData = ObjectHandler.GetObjectDataFromFile(path);
+                var path = ObjectDataStream.GetFullPath(typeName);
+                var objectData = ObjectDataStream.GetObjectDataFromFile(path);
 
                 if (objectData is not null)
                 {
