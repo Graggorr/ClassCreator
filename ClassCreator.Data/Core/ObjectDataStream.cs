@@ -5,6 +5,9 @@ using System.Reflection;
 
 namespace ClassCreator.Data.Core
 {
+    /// <summary>
+    /// Class which handles file stuff (creating, deletion, reading, writing)
+    /// </summary>
     internal class ObjectDataStream
     {
         private const string FILES_DIRECTORY_NAME = "Classes";
@@ -29,7 +32,14 @@ namespace ClassCreator.Data.Core
         {
             _logger = logger;
         }
-
+        
+        /// <summary>
+        /// Creates files with .json and .cs extensions (if they are not exist) and writes data into them
+        /// </summary>
+        /// <param name="typeName">The name of file</param>
+        /// <param name="jsonData">Data for .json file</param>
+        /// <param name="csharpData">Data for .cs file</param>
+        /// <returns>True if operation has been successed; otherwise - false</returns>
         public bool WriteDataIntoFile(string typeName, string jsonData, string csharpData)
         {
             var methodName = nameof(WriteDataIntoFile);
@@ -58,6 +68,12 @@ namespace ClassCreator.Data.Core
             return true;
         }
 
+        /// <summary>
+        /// Removes .json and .cs files with set file name
+        /// </summary>
+        /// <param name="typeName">File name</param>
+        /// <param name="cancellationToken">An instance of <see cref="CancellationToken"/> for cancelling operation after some time passing</param>
+        /// <returns>True if files have been removed successfuly; otherwise - false</returns>
         public bool RemoveFiles(string typeName, CancellationToken cancellationToken)
         {
             var methodName = nameof(RemoveFiles);
@@ -97,6 +113,11 @@ namespace ClassCreator.Data.Core
             return true;
         }
 
+        /// <summary>
+        /// Returns an instance of <see cref="ObjectData"/> which data is contained in the set path
+        /// </summary>
+        /// <param name="path">The path of file</param>
+        /// <returns>An instance of <see cref="ObjectData"/></returns>
         public static ObjectData? GetObjectDataFromFile(string path)
         {
             if (!Path.Exists(path))
@@ -112,11 +133,26 @@ namespace ClassCreator.Data.Core
             return JsonConvert.DeserializeObject<ObjectData>(data);
         }
 
+        /// <summary>
+        /// Returns the full path of the file with chosen file name and extension
+        /// </summary>
+        /// <param name="fileName">Name of file</param>
+        /// <param name="isJsonFile">Determines if need to return .json extension or .cs</param>
+        /// <returns>A new built <see cref="String"/></returns>
         public static string GetFullPath(string fileName, bool isJsonFile = true) =>
             Path.Combine(_classDirectoryPath, fileName + (isJsonFile ? JSON_EXTENSION : CSHARP_EXTESNION));
 
+        /// <summary>
+        /// Returns paths of all contained objects with .json extensions
+        /// </summary>
+        /// <returns>An instance of <see cref="IEnumerable{T}"/> which contains all paths</returns>
         public static IEnumerable<string> GetAllPaths() => Directory.GetFiles(_classDirectoryPath).Where(x => x.Contains(JSON_EXTENSION));
 
+        /// <summary>
+        /// Returns <see cref="Boolean"/> value of result of file existing verification
+        /// </summary>
+        /// <param name="typeName">Name of file</param>
+        /// <returns>True if both file exist; otherwise - false</returns>
         public static bool IsFilesExist(string typeName)
         {
             var jsonPath = GetFullPath(typeName, true);

@@ -79,6 +79,8 @@ namespace ClassCreator.Data.Core
             var dto = new ObjectDataDto()
             {
                 Name = objectData.Name,
+                AccessModifier = objectData.AccessModifier.ToString(),
+                DataType = objectData.DataType,
             };
 
             var concurrentBag = new ConcurrentBag<PropertyDataDto>();
@@ -90,8 +92,8 @@ namespace ClassCreator.Data.Core
                     Name = x.Name,
                     PropertyType = x.PropertyType.Name,
                     AccessModifier = x.AccessModifier.ToString(),
-                    GetterAccessModifier = x.GetterAccessModifier.ToString() ?? string.Empty,
-                    SetterAccessModifier = x.SetterAccessModifier.ToString() ?? string.Empty,
+                    GetterAccessModifier = x.GetterAccessModifier?.ToString(),
+                    SetterAccessModifier = x.SetterAccessModifier?.ToString(),
                 }));
             }).ToArray();
 

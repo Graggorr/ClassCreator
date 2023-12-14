@@ -50,10 +50,10 @@ namespace ClassCreator.Controllers.Core
 
             _logger.Log(LogLevel.Information, $"{methodName} - Object with chosen name is not found");
 
-            return BadRequest();
+            return BadRequest($"{name} is not found.");
         }
 
-        [HttpGet("/")]
+        [HttpGet()]
         public IActionResult GetAll()
         {
             var result = _objectCreator.GetAll();
@@ -84,6 +84,7 @@ namespace ClassCreator.Controllers.Core
             return BadRequest();
         }
 
+        [HttpPut("/{name}/")]
         public IActionResult UpdateObject(string name, ObjectDataDto dto)
         {
             var methodName = nameof(UpdateObject);
