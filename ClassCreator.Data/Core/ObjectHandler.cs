@@ -13,14 +13,14 @@ namespace ClassCreator.Data.Core
         private readonly ILogger _logger;
         private readonly ObjectDataParser _objectDataParser;
         private readonly AssemblyHelper _assemblyHelper;
-        private readonly ObjectDataStream _objectDataStream;
+        private readonly IObjectContainer _objectContainer;
 
         public ObjectHandler(ILogger<IObjectHandler> logger)
         {
             _logger = logger;
             _assemblyHelper = new AssemblyHelper(logger);
-            _objectDataStream = new ObjectDataStream(logger);
-            _objectDataParser = new ObjectDataParser(_assemblyHelper);
+            _objectContainer = new ObjectFileContainer(logger);
+            _objectDataParser = new ObjectDataParser(_objectContainer, _assemblyHelper);
         }
 
         public bool Add(ObjectDataDto objectDataDto) => AddOrUpdateCore(objectDataDto, true);
@@ -29,26 +29,21 @@ namespace ClassCreator.Data.Core
 
         public IEnumerable<ObjectDataDto> GetAll()
         {
-            var concurrentBag = new ConcurrentBag<ObjectDataDto>();
-            var allPaths = ObjectDataStream.GetAllPaths();
+            var result = _objectContainer.GetAll();
+            var convertedObjects = new ConcurrentBag<ObjectDataDto>();
 
-            var tasks = allPaths.Select(path =>
+            var tasks = result.Select(objectData =>
             {
                 return Task.Run(() =>
                 {
-                    var objectData = ObjectDataStream.GetObjectDataFromFile(path);
-
-                    if (objectData is not null)
-                    {
-                        var dto = _objectDataParser.GetObjectDataDto(objectData);
-                        concurrentBag.Add(dto);
-                    }
+                    var dto = _objectDataParser.GetObjectDataDto(objectData);
+                    convertedObjects.Add(dto);
                 });
             }).ToArray();
 
             Task.WaitAll(tasks);
 
-            return concurrentBag;
+            return convertedObjects;
         }
 
         public ObjectDataDto? Get(string typeName)
@@ -62,8 +57,7 @@ namespace ClassCreator.Data.Core
                 return null;
             }
 
-            var path = ObjectDataStream.GetFullPath(typeName);
-            var result = ObjectDataStream.GetObjectDataFromFile(path);
+            var result = _objectContainer.Get(typeName);
 
             if (result is null)
             {
@@ -78,19 +72,23 @@ namespace ClassCreator.Data.Core
         public bool Remove(string typeName)
         {
             var methodName = nameof(Remove);
+            var result = _objectContainer.Get(typeName);
 
-            if (Get(typeName) is null)
+            if (result is null)
             {
                 return false;
             }
 
-            return _objectDataStream.RemoveFiles(typeName, new CancellationTokenSource().Token);
+            var cancellationTokenSource = new CancellationTokenSource();
+            cancellationTokenSource.CancelAfter(TimeSpan.FromSeconds(1));
+
+            return _objectContainer.Remove(result, cancellationTokenSource.Token);
         }
 
         public object? TryGetInstance(string typeName)
         {
             var methodName = nameof(TryGetInstance);
-            var objectData = ObjectDataStream.GetObjectDataFromFile(ObjectDataStream.GetFullPath(typeName));
+            var objectData = _objectContainer.Get(typeName);
 
             if (objectData is null)
             {
@@ -131,7 +129,7 @@ namespace ClassCreator.Data.Core
 
             if (isToAdd)
             {
-                if (ObjectDataStream.IsFilesExist(objectData.Name))
+                if (_objectContainer.Contains(objectData))
                 {
                     _logger.Log(LogLevel.Warning, $"{methodName} - The chosen object already exists.");
 
@@ -140,7 +138,7 @@ namespace ClassCreator.Data.Core
             }
             else
             {
-                if (!ObjectDataStream.IsFilesExist(objectData.Name))
+                if (!_objectContainer.Contains(objectData))
                 {
                     _logger.Log(LogLevel.Warning, $"{methodName} - The chosen object does not exist.");
 
@@ -149,7 +147,7 @@ namespace ClassCreator.Data.Core
             }
 
             var serializedData = JsonConvert.SerializeObject(objectData);
-            var result = _objectDataStream.WriteDataIntoFile(objectData.Name, serializedData, objectData.ToString());
+            var result = _objectContainer.SaveOrUpdate(objectData);
 
             if (result)
             {

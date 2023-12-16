@@ -1,14 +1,21 @@
-﻿using ClassCreator.Data.Utility.Entity;
+﻿using ClassCreator.Data.Common;
+using ClassCreator.Data.Utility.DTO;
+using ClassCreator.Data.Utility.Entity;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Reflection;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace ClassCreator.Data.Core
 {
-    /// <summary>
-    /// Class which handles file stuff (creating, deletion, reading, writing)
-    /// </summary>
-    internal class ObjectDataStream
+    internal class ObjectFileContainer : IObjectContainer
     {
         private const string FILES_DIRECTORY_NAME = "Classes";
         private const string JSON_EXTENSION = ".json";
@@ -18,7 +25,7 @@ namespace ClassCreator.Data.Core
 
         private readonly ILogger _logger;
 
-        static ObjectDataStream()
+        static ObjectFileContainer()
         {
             _classDirectoryPath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), FILES_DIRECTORY_NAME);
 
@@ -27,22 +34,17 @@ namespace ClassCreator.Data.Core
                 Directory.CreateDirectory(_classDirectoryPath);
             }
         }
-
-        public ObjectDataStream(ILogger logger)
+        public ObjectFileContainer(ILogger logger)
         {
             _logger = logger;
         }
-        
-        /// <summary>
-        /// Creates files with .json and .cs extensions (if they are not exist) and writes data into them
-        /// </summary>
-        /// <param name="typeName">The name of file</param>
-        /// <param name="jsonData">Data for .json file</param>
-        /// <param name="csharpData">Data for .cs file</param>
-        /// <returns>True if operation has been successed; otherwise - false</returns>
-        public bool WriteDataIntoFile(string typeName, string jsonData, string csharpData)
+
+        public bool SaveOrUpdate(ObjectData objectData)
         {
-            var methodName = nameof(WriteDataIntoFile);
+            var methodName = nameof(SaveOrUpdate);
+            var typeName = objectData.Name;
+            var jsonData = JsonConvert.SerializeObject(objectData);
+            var csharpData = objectData.ToString();
             var csharpPath = GetFullPath(typeName, false);
             var jsonPath = GetFullPath(typeName);
 
@@ -68,15 +70,37 @@ namespace ClassCreator.Data.Core
             return true;
         }
 
-        /// <summary>
-        /// Removes .json and .cs files with set file name
-        /// </summary>
-        /// <param name="typeName">File name</param>
-        /// <param name="cancellationToken">An instance of <see cref="CancellationToken"/> for cancelling operation after some time passing</param>
-        /// <returns>True if files have been removed successfuly; otherwise - false</returns>
-        public bool RemoveFiles(string typeName, CancellationToken cancellationToken)
+        public ObjectData? Get(string typeName) => GetObjectDataFromFile(GetFullPath(typeName));
+
+        public bool Contains(ObjectData objectData) => Get(objectData.Name) is not null;
+
+        public IEnumerable<ObjectData> GetAll()
         {
-            var methodName = nameof(RemoveFiles);
+            var concurrentBag = new ConcurrentBag<ObjectData>();
+            var allPaths = GetAllPaths();
+
+            var tasks = allPaths.Select(path =>
+            {
+                return Task.Run(() =>
+                {
+                    var objectData = GetObjectDataFromFile(path);
+
+                    if (objectData is not null)
+                    {
+                        concurrentBag.Add(objectData);
+                    }
+                });
+            }).ToArray();
+
+            Task.WaitAll(tasks);
+
+            return concurrentBag;
+        }
+
+        public bool Remove(ObjectData ObjectData, CancellationToken cancellationToken = default)
+        {
+            var methodName = nameof(Remove);
+            var typeName = ObjectData.Name;
             var csharpFilePath = GetFullPath(typeName, false);
             var jsonFilePath = GetFullPath(typeName);
             var isJsonFileReady = false;
@@ -113,12 +137,12 @@ namespace ClassCreator.Data.Core
             return true;
         }
 
-        /// <summary>
-        /// Returns an instance of <see cref="ObjectData"/> which data is contained in the set path
-        /// </summary>
-        /// <param name="path">The path of file</param>
-        /// <returns>An instance of <see cref="ObjectData"/></returns>
-        public static ObjectData? GetObjectDataFromFile(string path)
+        private static string GetFullPath(string fileName, bool isJsonFile = true) =>
+            Path.Combine(_classDirectoryPath, fileName + (isJsonFile ? JSON_EXTENSION : CSHARP_EXTESNION));
+
+        private static IEnumerable<string> GetAllPaths() => Directory.GetFiles(_classDirectoryPath).Where(x => x.Contains(JSON_EXTENSION));
+
+        private static ObjectData? GetObjectDataFromFile(string path)
         {
             if (!Path.Exists(path))
             {
@@ -131,34 +155,6 @@ namespace ClassCreator.Data.Core
             streamReader.Close();
 
             return JsonConvert.DeserializeObject<ObjectData>(data);
-        }
-
-        /// <summary>
-        /// Returns the full path of the file with chosen file name and extension
-        /// </summary>
-        /// <param name="fileName">Name of file</param>
-        /// <param name="isJsonFile">Determines if need to return .json extension or .cs</param>
-        /// <returns>A new built <see cref="String"/></returns>
-        public static string GetFullPath(string fileName, bool isJsonFile = true) =>
-            Path.Combine(_classDirectoryPath, fileName + (isJsonFile ? JSON_EXTENSION : CSHARP_EXTESNION));
-
-        /// <summary>
-        /// Returns paths of all contained objects with .json extensions
-        /// </summary>
-        /// <returns>An instance of <see cref="IEnumerable{T}"/> which contains all paths</returns>
-        public static IEnumerable<string> GetAllPaths() => Directory.GetFiles(_classDirectoryPath).Where(x => x.Contains(JSON_EXTENSION));
-
-        /// <summary>
-        /// Returns <see cref="Boolean"/> value of result of file existing verification
-        /// </summary>
-        /// <param name="typeName">Name of file</param>
-        /// <returns>True if both file exist; otherwise - false</returns>
-        public static bool IsFilesExist(string typeName)
-        {
-            var jsonPath = GetFullPath(typeName, true);
-            var csharpPath = GetFullPath(typeName, false);
-
-            return File.Exists(jsonPath) || File.Exists(csharpPath);
         }
 
         private async Task<bool> WriteDataIntoFileInternal(string path, string data)
