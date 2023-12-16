@@ -3,6 +3,7 @@ using ClassCreator.Data.Utility.Entity;
 using ClassCreator.Data.Utility;
 using System.Reflection;
 using System.Collections.Concurrent;
+using ClassCreator.Data.Common;
 
 namespace ClassCreator.Data.Core
 {
@@ -12,9 +13,11 @@ namespace ClassCreator.Data.Core
     internal class ObjectDataParser
     {
         private readonly AssemblyHelper _assemblyHelper;
+        private readonly IObjectContainer _objectContainer;
 
-        public ObjectDataParser(AssemblyHelper assemblyHelper)
+        public ObjectDataParser(IObjectContainer objectContainer, AssemblyHelper assemblyHelper)
         {
+            _objectContainer = objectContainer;
             _assemblyHelper = assemblyHelper;
         }
 
@@ -205,8 +208,7 @@ namespace ClassCreator.Data.Core
 
             if (type is null)
             {
-                var path = ObjectDataStream.GetFullPath(typeName);
-                var objectData = ObjectDataStream.GetObjectDataFromFile(path);
+                var objectData = _objectContainer.Get(typeName);
 
                 if (objectData is not null)
                 {
